@@ -23,9 +23,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Keep direct TikTok snapshots running every five minutes
+      - name: Keep direct TikTok snapshots running every thirty minutes
         env:
           RADAR_SITE_TOKEN: ${{ secrets.RADAR_SITE_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
-          RADAR_SESSION_MINUTES: ${{ github.event_name == 'push' && '6' || '55' }}
+          RADAR_SESSION_MINUTES: '55'
         run: node scripts/runner-loop.mjs
