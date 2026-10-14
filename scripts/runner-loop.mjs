@@ -4,13 +4,17 @@ const site=process.env.RADAR_SITE_URL||'https://tiktok-sales-radar-bingbing.come
 const runId=process.env.GITHUB_RUN_ID,token=process.env.RADAR_SITE_TOKEN;
 const repo=process.env.GITHUB_REPOSITORY;
 if(!runId||!token||!repo||!process.env.GITHUB_TOKEN)throw Error('Protected runner credentials unavailable');
-const interval=300000;
+const interval=1800000;
 const duration=Math.max(6,Math.min(55,Number(process.env.RADAR_SESSION_MINUTES)||55))*60000;
 const started=Date.now(),deadline=started+duration;
-let nextAt=started,lastRequest=started,stopped=false;
 const siteHeaders={'OAI-Sites-Authorization':`Bearer ${token}`,'Content-Type':'application/json'};
+const initialResponse=await fetch(site+'/api/runner',{headers:siteHeaders,signal:AbortSignal.timeout(30000)});
+if(!initialResponse.ok)throw Error(`Runner state HTTP ${initialResponse.status}`);
+const previous=await initialResponse.json();
+const carry=previous.activeIntervalMinutes===30&&previous.nextRun>started&&previous.nextRun<=started+interval;
+let nextAt=carry?previous.nextRun:Math.max(started,(previous.lastRun||0)+interval),lastRequest=started,stopped=false;
 async function signal(operation){
- const response=await fetch(site+'/api/runner',{method:'POST',headers:siteHeaders,body:JSON.stringify({runId,nextAt,operation}),signal:AbortSignal.timeout(30000)});
+ const response=await fetch(site+'/api/runner',{method:'POST',headers:siteHeaders,body:JSON.stringify({runId,nextAt,operation,intervalMinutes:30}),signal:AbortSignal.timeout(30000)});
  if(!response.ok)throw Error(`Runner signal HTTP ${response.status}`);
  return response.json();
 }
