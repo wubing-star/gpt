@@ -1,0 +1,21 @@
+name: TikTok Shop snapshot radar
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tiktok-shop-radar
+  cancel-in-progress: false
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Read TikTok directly and save snapshots
+        env:
+          RADAR_SITE_TOKEN: ${{ secrets.RADAR_SITE_TOKEN }}
+        run: node scripts/collect-cloud.mjs
