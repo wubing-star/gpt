@@ -37,7 +37,7 @@ try{
   }
   await wait(Math.min(15000,Math.max(0,deadline-Date.now())));
  }
-}finally{clearInterval(keepAlive);await signal('release').catch(()=>{});}
+}finally{clearInterval(keepAlive);while(pulsing)await wait(50);await signal('release').catch(()=>{});}
 if(!stopped){
  const apiHeaders={'Authorization':`Bearer ${process.env.GITHUB_TOKEN}`,'Accept':'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'};
  const workflow=`https://api.github.com/repos/${repo}/actions/workflows/radar-snapshots.yml`;
