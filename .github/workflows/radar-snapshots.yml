@@ -1,23 +1,31 @@
 name: TikTok Shop snapshot radar
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/radar-snapshots.yml'
+      - 'scripts/runner-loop.mjs'
   schedule:
-    - cron: '2-59/5 * * * *'
+    - cron: '17 * * * *'
 permissions:
   contents: read
+  actions: write
 concurrency:
   group: tiktok-shop-radar
   cancel-in-progress: false
 jobs:
   snapshot:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 65
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Read TikTok directly and save snapshots
+      - name: Keep direct TikTok snapshots running every five minutes
         env:
           RADAR_SITE_TOKEN: ${{ secrets.RADAR_SITE_TOKEN }}
-        run: node scripts/collect-cloud.mjs
+          GITHUB_TOKEN: ${{ github.token }}
+          RADAR_SESSION_MINUTES: ${{ github.event_name == 'push' && '6' || '55' }}
+        run: node scripts/runner-loop.mjs
