@@ -1,6 +1,8 @@
 name: TikTok Shop snapshot radar
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '2-59/5 * * * *'
 permissions:
   contents: read
 concurrency:
