@@ -1,5 +1,6 @@
 import {spawn} from 'node:child_process';
 import {setTimeout as wait} from 'node:timers/promises';
+import {initialNextAt,advanceNextAt} from '../lib/radar/cadence.mjs';
 const site=process.env.RADAR_SITE_URL||'https://tiktok-sales-radar-bingbing.comet-jelly-2682.chatgpt.site';
 const runId=process.env.GITHUB_RUN_ID,token=process.env.RADAR_SITE_TOKEN;
 const repo=process.env.GITHUB_REPOSITORY;
@@ -11,8 +12,7 @@ const siteHeaders={'OAI-Sites-Authorization':`Bearer ${token}`,'Content-Type':'a
 const initialResponse=await fetch(site+'/api/runner',{headers:siteHeaders,signal:AbortSignal.timeout(30000)});
 if(!initialResponse.ok)throw Error(`Runner state HTTP ${initialResponse.status}`);
 const previous=await initialResponse.json();
-const carry=previous.activeIntervalMinutes===30&&previous.nextRun>started&&previous.nextRun<=started+interval;
-let nextAt=carry?previous.nextRun:Math.max(started,(previous.lastRun||0)+interval),lastRequest=started,stopped=false;
+let nextAt=initialNextAt(previous,started,interval),lastRequest=previous.requestAt<=Number(previous.lastRun||0)?previous.requestAt:0,stopped=false;
 async function signal(operation){
  const response=await fetch(site+'/api/runner',{method:'POST',headers:siteHeaders,body:JSON.stringify({runId,nextAt,operation,intervalMinutes:30}),signal:AbortSignal.timeout(30000)});
  if(!response.ok)throw Error(`Runner signal HTTP ${response.status}`);
@@ -20,7 +20,8 @@ async function signal(operation){
 }
 const claim=await signal('claim');
 if(!claim.acquired){console.log('Another collector owns the current lease.');process.exit(0);}
-async function pulse(){const state=await signal('pulse');if(!state.acquired)stopped=true;return state;}
+nextAt=claim.nextRun||nextAt;
+async function pulse(){const state=await signal('pulse');if(!state.acquired)stopped=true;else nextAt=state.nextRun||nextAt;return state;}
 let pulsing=false;
 const keepAlive=setInterval(async()=>{if(pulsing||stopped)return;pulsing=true;try{await pulse();}catch{console.error('Runner pulse temporarily unavailable.');}finally{pulsing=false;}},15000);
 function collect(){return new Promise(resolve=>{const child=spawn(process.execPath,['scripts/collect-cloud.mjs'],{env:process.env,stdio:'inherit'});child.on('error',()=>resolve(1));child.on('exit',code=>resolve(code??1));});}
@@ -35,8 +36,7 @@ try{
    console.log(JSON.stringify({cycleStarted:new Date().toISOString()}));
    const code=await collect();
    console.log(JSON.stringify({cycleFinished:new Date().toISOString(),success:code===0}));
-   if(requested)nextAt=Date.now()+interval;
-   else do{nextAt+=interval;}while(nextAt<=Date.now());
+   nextAt=advanceNextAt(nextAt,Date.now(),interval);
    await pulse().catch(()=>console.error('Waiting for the next runner pulse.'));
   }
   await wait(Math.min(15000,Math.max(0,deadline-Date.now())));
