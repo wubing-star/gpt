@@ -1,6 +1,7 @@
 import {spawn} from 'node:child_process';
 import {setTimeout as wait} from 'node:timers/promises';
 import {initialNextAt,advanceNextAt} from '../lib/radar/cadence.mjs';
+import {cloudRequest} from '../lib/radar/cloud-request.mjs';
 const site=process.env.RADAR_SITE_URL||'https://tiktok-sales-radar-bingbing.comet-jelly-2682.chatgpt.site';
 const runId=process.env.GITHUB_RUN_ID,token=process.env.RADAR_SITE_TOKEN;
 const repo=process.env.GITHUB_REPOSITORY;
@@ -9,14 +10,10 @@ const interval=1800000;
 const duration=Math.max(6,Math.min(55,Number(process.env.RADAR_SESSION_MINUTES)||55))*60000;
 const started=Date.now(),deadline=started+duration;
 const siteHeaders={'OAI-Sites-Authorization':`Bearer ${token}`,'Content-Type':'application/json'};
-const initialResponse=await fetch(site+'/api/runner',{headers:siteHeaders,signal:AbortSignal.timeout(30000)});
-if(!initialResponse.ok)throw Error(`Runner state HTTP ${initialResponse.status}`);
-const previous=await initialResponse.json();
+const previous=await cloudRequest(site+'/api/runner',{headers:siteHeaders});
 let nextAt=initialNextAt(previous,started,interval),lastRequest=previous.requestAt<=Number(previous.lastRun||0)?previous.requestAt:0,stopped=false;
 async function signal(operation){
- const response=await fetch(site+'/api/runner',{method:'POST',headers:siteHeaders,body:JSON.stringify({runId,nextAt,operation,intervalMinutes:30}),signal:AbortSignal.timeout(30000)});
- if(!response.ok)throw Error(`Runner signal HTTP ${response.status}`);
- return response.json();
+ return cloudRequest(site+'/api/runner',{method:'POST',headers:siteHeaders,body:JSON.stringify({runId,nextAt,operation,intervalMinutes:30})});
 }
 const claim=await signal('claim');
 if(!claim.acquired){console.log('Another collector owns the current lease.');process.exit(0);}
