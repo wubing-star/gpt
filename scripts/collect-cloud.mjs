@@ -6,11 +6,12 @@ if(!token)throw new Error('Configure RADAR_SITE_TOKEN as a protected cloud-runne
 const headers={'OAI-Sites-Authorization':`Bearer ${token}`,'Content-Type':'application/json'};
 const shops=await cloudRequest(site+'/api/shops',{headers});if(!Array.isArray(shops))throw new Error('Invalid shop list');
 let cursor=0;const failures=[];
-await Promise.all(Array.from({length:Math.min(4,shops.length)},async()=>{
+await Promise.all(Array.from({length:Math.min(2,shops.length)},async()=>{
  while(cursor<shops.length){const index=cursor++;const shop=shops[index];try{
   const result=await collectStore(shop);const saved=await fetch(site+'/api/ingest',{method:'POST',headers,body:JSON.stringify({results:[result]}),signal:AbortSignal.timeout(60000)});
   if(!saved.ok)throw new Error(`Snapshot save HTTP ${saved.status}`);
-  console.log(JSON.stringify({item:index+1,covered:result.products.length,reported:result.shop.reported,coverageComplete:result.complete}));
+  if(!result.complete)failures.push({item:index+1,shopId:shop.id,errorType:'IncompleteCoverage',error:String(result.warning||'商品覆盖不完整').slice(0,250)});
+  console.log(JSON.stringify({item:index+1,shopId:shop.id,covered:result.products.length,reported:result.shop.reported,seen:result.seen,retries:result.retries,paginationComplete:result.paginationComplete,coverageComplete:result.complete,warning:result.warning}));
  }catch(e){failures.push({item:index+1,shopId:shop.id,errorType:e.name||'Error',error:String(e.message||e).slice(0,250)});console.error(JSON.stringify(failures.at(-1)));}}
 }));
 if(process.env.GITHUB_ACTIONS==='true'&&process.env.GITHUB_RUN_ID){
