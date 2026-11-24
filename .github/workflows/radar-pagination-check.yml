@@ -1,0 +1,39 @@
+name: Radar pagination check
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/radar-pagination-check.yml']
+permissions:
+  contents: read
+concurrency:
+  group: radar-pagination-check
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Inspect public pagination responses without writing snapshots
+        run: |
+          node --input-type=module <<'JS'
+          import {collectStore} from './lib/radar/source.mjs';
+          const targets=[['7494103726733493678','findry'],['7496084945488939143','crasea'],['7495369409107364558','klsmyhoki-us']];
+          for(const [id,slug] of targets){
+           let request=0;
+           const inspect=async(url,options)=>{
+            const response=await fetch(url,options);
+            if(options?.method==='POST'){
+             const body=JSON.parse(options.body),params=JSON.parse(body.load_more_params);
+             let result={};try{result=await response.clone().json();}catch{}
+             console.log(JSON.stringify({store:slug,pageRequest:++request,http:response.status,offset:params.offset,parameterKeys:Object.keys(params),excluded:params.exclude_product_ids?.length,code:result.code,message:String(result.message||result.msg||'').slice(0,120),returned:result.data?.products?.length,nextOffset:result.data?.load_more_params?.offset,nextKeys:Object.keys(result.data?.load_more_params||{}),hasMore:result.data?.has_more}));
+            }
+            return response;
+           };
+           try{const r=await collectStore({id,url:'https://shop.tiktok.com/us/store/'+slug+'/'+id},inspect);console.log(JSON.stringify({store:slug,covered:r.products.length,reported:r.shop.reported,complete:r.complete,warning:r.warning}));}catch(e){console.log(JSON.stringify({store:slug,error:String(e.message).slice(0,250)}));}
+          }
+          JS
